@@ -9,6 +9,7 @@ Another point: we'll soon drop the need for this API once we migrate to an
 updated toolchain.
 -/
 
+variable [Ord α]
 
 open Std (RBMap) in
 structure Graph (α : Type) [Ord α] where
@@ -17,15 +18,15 @@ structure Graph (α : Type) [Ord α] where
 open Lean Std
 namespace Graph
 
-def empty {α} [Ord α] : Graph α := { data := Std.RBMap.empty }
+def empty: Graph α := { data := Std.RBMap.empty }
 
-def vertices {α} [Ord α] (g : Graph α): List α :=
+def vertices(g : Graph α): List α :=
   g.data.toList.map Prod.fst
 
-def edges {α} [Ord α] (g : Graph α) : List (α × α) := 
+def edges(g : Graph α) : List (α × α) := 
   (g.data.toList.map fun (x, xs) => xs.map fun y => ⟨x, y⟩).join
 
-def buildG {α} [Ord α] (edges : List (α × α)) : Graph α :=
+def buildG(edges : List (α × α)) : Graph α :=
   List.foldl (fun g e => 
     -- add the edge source as a vertex
     let g1 : Graph α := match g.data.find? e.1 with 
@@ -35,21 +36,21 @@ def buildG {α} [Ord α] (edges : List (α × α)) : Graph α :=
     { g1 with data := g1.data.insert e.2 $ List.flatten (g1.data.find? e.2) }
   ) empty edges
 
-def reverseE {α} [Ord α] (g : Graph α) : List (α × α) :=
+def reverseE(g : Graph α) : List (α × α) :=
   g.edges.map fun (v, w) => (w, v)
 
-def transposeG {α} [Ord α] (g : Graph α) : Graph α :=
+def transposeG(g : Graph α) : Graph α :=
   buildG g.reverseE
 
 open Std in 
-def outDegrees {α} [Ord α] (g : Graph α) : RBMap α Nat compare :=
+def outDegrees(g : Graph α) : RBMap α Nat compare :=
   RBMap.fromList (g.data.toList.map fun (x, xs) => (x, xs.length)) compare
 
-def outDegree {α} [Ord α] (g : Graph α) (v : α) : Option Nat :=
+def outDegree(g : Graph α) (v : α) : Option Nat :=
   List.length <$> g.data.find? v
 
 open Std in 
-def inDegrees {α} [Ord α] (g : Graph α) : RBMap α Nat compare :=
+def inDegrees(g : Graph α) : RBMap α Nat compare :=
   g.data.fold (fun degrees _ xs => 
     xs.foldl (fun acc v => 
       match acc.find? v with 
@@ -60,11 +61,11 @@ def inDegrees {α} [Ord α] (g : Graph α) : RBMap α Nat compare :=
 
 open Std in 
 /-- Not sure which one is better? -/
-def inDegrees' {α} [Ord α] (g : Graph α) : RBMap α Nat compare :=
+def inDegrees'(g : Graph α) : RBMap α Nat compare :=
   g.transposeG.outDegrees
 
 /-- Don't use this, it will recompute `g.inDegrees` every time, yuck! -/
-def inDegree {α} [Ord α] (g : Graph α) (v : α) : Option Nat :=
+def inDegree(g : Graph α) (v : α) : Option Nat :=
   g.inDegrees.find? v
 
 structure dfsState (α) [Ord α] where 
@@ -74,7 +75,7 @@ abbrev dfsM (α) [Ord α] := ReaderT (Graph α) $ EStateM String (dfsState α)
 
 open YatimaStdLib (Tree)
 
-partial def generate {α} [Ord α] [ToString α] (v : α) : (dfsM α) $ (Tree α) := do
+partial def generate [ToString α] (v : α) : (dfsM α) $ (Tree α) := do
   match (← get).visited.find? v with
   | some _ => pure .empty
   | none => do
@@ -85,34 +86,34 @@ partial def generate {α} [Ord α] [ToString α] (v : α) : (dfsM α) $ (Tree α
       pure $ .node v $ ts.filter $ not ∘ Tree.isEmpty
     | none => throw s!"Vertex {v} not found in graph"
 
-def generateVs {α} [Ord α] [ToString α] (vs : List α) : (dfsM α) $ List $ Tree α := do 
+def generateVs [ToString α] (vs : List α) : (dfsM α) $ List $ Tree α := do 
   vs.mapM generate
 
-def dfsM.run {α} [Ord α] [ToString α] (g : Graph α) (v : α) : Except String $ Tree α  :=
+def dfsM.run [ToString α] (g : Graph α) (v : α) : Except String $ Tree α  :=
   match EStateM.run (ReaderT.run (generate v) g) { visited := .empty } with 
   | .ok res _ => .ok res 
   | .error e _ => .error e
 
-def dfs? {α} [Ord α] [ToString α] (g : Graph α) (vs : List α) : Except String $ List $ Tree α :=
+def dfs? [ToString α] (g : Graph α) (vs : List α) : Except String $ List $ Tree α :=
   match EStateM.run (ReaderT.run (generateVs vs) g) { visited := .empty } with 
   | .ok res _ => .ok res 
   | .error e _ => .error e
 
-def dfs! {α} [Ord α] [ToString α] (g : Graph α) (vs : List α) : List $ Tree α :=
+def dfs! [ToString α] (g : Graph α) (vs : List α) : List $ Tree α :=
   match EStateM.run (ReaderT.run (generateVs vs) g) { visited := .empty } with 
   | .ok res _ => res 
   | .error e _ => panic! e
 
-def dff? {α} [Ord α] [ToString α] (g : Graph α) : Except String $ List $ Tree α :=
+def dff? [ToString α] (g : Graph α) : Except String $ List $ Tree α :=
   g.dfs? g.vertices 
 
-def dff! {α} [Ord α] [ToString α] (g : Graph α) : List $ Tree α :=
+def dff! [ToString α] (g : Graph α) : List $ Tree α :=
   g.dfs! g.vertices
 
-def preord {α} [Ord α] [ToString α] (g : Graph α) : List α :=
+def preord [ToString α] (g : Graph α) : List α :=
   Tree.preorderF g.dff!
 
-def postord {α} [Ord α] [ToString α] (g : Graph α) : List α :=
+def postord [ToString α] (g : Graph α) : List α :=
   Tree.postorderF (dff! g)
 
 structure NodeInfo where
@@ -129,17 +130,17 @@ structure sccState (α) [Ord α] where
   index : Nat 
   stack : List α
 
-instance (α) [Ord α] : Inhabited (sccState α):= 
+instance : Inhabited (sccState α):= 
   { default := ⟨.empty, default, default⟩ }
 
 abbrev sccM (α) [Ord α] [ToString α] := ReaderT (Graph α) $ EStateM String (sccState α)
 
 namespace sccM
 
-def getInfo {α} [Ord α] [ToString α] (v : α) : (sccM α) NodeInfo := do 
+def getInfo [ToString α] (v : α) : (sccM α) NodeInfo := do 
   (← get).info.findM v s!"Vertex {v} not found in graph" 
 
-def setInfo {α} [Ord α] [ToString α]  (v : α) (info : NodeInfo) : (sccM α) Unit := do
+def setInfo [ToString α]  (v : α) (info : NodeInfo) : (sccM α) Unit := do
   set { ← get with info := (← get).info.insert v info }
 
 /--  
@@ -150,7 +151,7 @@ that can be found by depth first searching from `v`.
 Note that `G` is not necessarily simple, i.e. it may have self loops,
 and we consider those singletons as strongly connected to itself.
 -/
-partial def strongConnect {α} [Ord α] [BEq α] [ToString α] (v : α) : (sccM α) (List $ (List α)) := do 
+partial def strongConnect [BEq α] [ToString α] (v : α) : (sccM α) (List $ (List α)) := do 
   let idx := (← get).index
   set ({ info := (← get).info.insert v ⟨idx, idx, true⟩, 
          index := idx + 1, 
@@ -188,7 +189,7 @@ partial def strongConnect {α} [Ord α] [BEq α] [ToString α] (v : α) : (sccM 
       pure $ sccs
   else pure sccs
 
-def run {α} [Ord α] [BEq α] [ToString α] [ToString α] : (sccM α) $ List $ (List α) := do 
+def run [BEq α] [ToString α] [ToString α] : (sccM α) $ List $ (List α) := do 
   (← read).vertices.foldlM (init := []) $ fun acc v => do
     match (← get).info.find? v with 
     | some ⟨_, _, _⟩ => pure acc 
@@ -199,12 +200,12 @@ def run {α} [Ord α] [BEq α] [ToString α] [ToString α] : (sccM α) $ List $ 
 
 end sccM
 
-def scc? {α} [Ord α] [BEq α] [ToString α] (g : Graph α) : Except String $ List $ (List α) :=
+def scc? [BEq α] [ToString α] (g : Graph α) : Except String $ List $ (List α) :=
   match EStateM.run (ReaderT.run sccM.run g) default with 
   | .ok  res _ => .ok res 
   | .error e _ => .error e
 
-def scc! {α} [Ord α] [BEq α] [ToString α] (g : Graph α) : List $ (List α) :=
+def scc! [BEq α] [ToString α] (g : Graph α) : List $ (List α) :=
   match EStateM.run (ReaderT.run sccM.run g) default with 
   | .ok  res _ => res 
   | .error e _ => panic! e
